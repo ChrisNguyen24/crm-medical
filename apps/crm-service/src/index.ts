@@ -13,6 +13,7 @@ import { reportRoutes }       from "./routes/reports";
 import { userRoutes }         from "./routes/users";
 import { cannedRoutes }       from "./routes/canned";
 import { channelRoutes }      from "./routes/channels";
+import { facebookOAuthRoutes } from "./routes/facebook-oauth";
 
 const log = createLogger("crm-service");
 
@@ -37,6 +38,7 @@ async function bootstrap() {
   await app.register(userRoutes,         { prefix: "/v1/users" });
   await app.register(cannedRoutes,       { prefix: "/v1/canned-responses" });
   await app.register(channelRoutes,      { prefix: "/v1/channels" });
+  await app.register(facebookOAuthRoutes, { prefix: "/v1/facebook/oauth" });
 
   await app.listen({ port: env.CRM_SERVICE_PORT, host: "0.0.0.0" });
   log.info(`CRM service listening on port ${env.CRM_SERVICE_PORT}`);

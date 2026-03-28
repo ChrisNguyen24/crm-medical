@@ -5,10 +5,11 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useSocketEvents } from "@/hooks/useSocket";
 
 const NAV_ITEMS = [
-  { href: "/inbox",    icon: "💬", label: "Hộp thư" },
-  { href: "/contacts", icon: "👥", label: "Liên hệ" },
-  { href: "/deals",    icon: "🤝", label: "Deal" },
-  { href: "/reports",  icon: "📊", label: "Báo cáo" },
+  { href: "/inbox",             icon: "💬", label: "Hộp thư" },
+  { href: "/contacts",          icon: "👥", label: "Liên hệ" },
+  { href: "/deals",             icon: "🤝", label: "Deal" },
+  { href: "/reports",           icon: "📊", label: "Báo cáo" },
+  { href: "/settings/channels", icon: "⚙️",  label: "Kênh kết nối" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

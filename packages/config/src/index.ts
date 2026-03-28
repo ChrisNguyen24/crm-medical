@@ -22,9 +22,11 @@ const envSchema = z.object({
   MASTER_KEY: z.string().min(32),
 
   // Facebook
-  FACEBOOK_VERIFY_TOKEN: z.string().min(1),
-  FACEBOOK_APP_SECRET: z.string().min(1),
+  FACEBOOK_APP_ID: z.string().min(1).default(""),
+  FACEBOOK_VERIFY_TOKEN: z.string().min(1).default("my_fb_verify_token"),
+  FACEBOOK_APP_SECRET: z.string().optional().default(""),
   FACEBOOK_PAGE_ACCESS_TOKEN: z.string().optional(),
+  FACEBOOK_REDIRECT_URI: z.string().url().default("http://localhost:3003/v1/facebook/oauth/callback"),
 
   // Zalo
   ZALO_APP_ID: z.string().optional(),
