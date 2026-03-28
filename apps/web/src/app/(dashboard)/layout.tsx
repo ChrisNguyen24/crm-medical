@@ -9,7 +9,8 @@ const NAV_ITEMS = [
   { href: "/contacts",          icon: "👥", label: "Liên hệ" },
   { href: "/deals",             icon: "🤝", label: "Deal" },
   { href: "/reports",           icon: "📊", label: "Báo cáo" },
-  { href: "/settings/channels", icon: "⚙️",  label: "Kênh kết nối" },
+  { href: "/settings/channels",          icon: "⚙️",  label: "Kênh kết nối" },
+  { href: "/settings/canned-responses", icon: "💾",  label: "Câu trả lời mẫu" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

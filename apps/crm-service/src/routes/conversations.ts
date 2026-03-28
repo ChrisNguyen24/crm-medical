@@ -36,11 +36,13 @@ export async function conversationRoutes(app: FastifyInstance) {
     const rows = await db
       .select({
         id:              conversations.id,
-        channel:         conversations.channel,
-        status:          conversations.status,
-        lastMessageAt:   conversations.lastMessageAt,
-        lastMessageText: conversations.lastMessageText,
-        assignedAgent:   conversations.assignedAgent,
+        channel:          conversations.channel,
+        status:           conversations.status,
+        lastMessageAt:    conversations.lastMessageAt,
+        lastMessageText:  conversations.lastMessageText,
+        assignedAgent:    conversations.assignedAgent,
+        isStarred:        conversations.isStarred,
+        isUnreadByAgent:  conversations.isUnreadByAgent,
         contact: {
           id:          contacts.id,
           displayName: contacts.displayName,
@@ -87,7 +89,7 @@ export async function conversationRoutes(app: FastifyInstance) {
       .orderBy(desc(messages.createdAt))
       .limit(Number(limit));
 
-    return { data: rows.reverse() }; // chronological order
+    return { data: rows.reverse(), hasMore: rows.length === Number(limit) }; // chronological order
   });
 
   // POST /conversations/:id/messages  (send outbound)
@@ -165,12 +167,14 @@ export async function conversationRoutes(app: FastifyInstance) {
   // PATCH /conversations/:id
   app.patch<{
     Params: { id: string };
-    Body: { status?: string; assigned_agent?: string };
+    Body: { status?: string; assigned_agent?: string; is_starred?: boolean; is_unread_by_agent?: boolean };
   }>("/:id", { onRequest: [requireAuth] }, async (req, reply) => {
-    const { status, assigned_agent } = req.body;
+    const { status, assigned_agent, is_starred, is_unread_by_agent } = req.body;
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (status) updates.status = status;
     if (assigned_agent !== undefined) updates.assignedAgent = assigned_agent || null;
+    if (is_starred !== undefined) updates.isStarred = is_starred;
+    if (is_unread_by_agent !== undefined) updates.isUnreadByAgent = is_unread_by_agent;
 
     const [updated] = await db
       .update(conversations)

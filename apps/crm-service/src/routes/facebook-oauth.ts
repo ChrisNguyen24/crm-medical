@@ -12,9 +12,9 @@ const FB_API = "https://graph.facebook.com/v19.0";
 const WEB_URL = process.env.WEB_URL ?? "http://localhost:3004";
 
 const SCOPES = [
-  "pages_manage_metadata",
-  "pages_messaging",
+  "pages_show_list",
   "pages_read_engagement",
+  "pages_messaging",
 ].join(",");
 
 interface FbPage {
@@ -171,14 +171,6 @@ export async function facebookOAuthRoutes(app: FastifyInstance) {
     const page = pages.find((p) => p.id === pageId);
     if (!page) return reply.code(400).send({ error: "Page not in session" });
 
-    // Subscribe the page to the app's webhook
-    try {
-      await subscribePageWebhook(page.id, page.access_token);
-    } catch (err) {
-      log.error({ err, pageId }, "Webhook subscription failed");
-      return reply.code(502).send({ error: "Failed to subscribe page to webhook" });
-    }
-
     // Upsert into channel_configs (update token if page already connected)
     const [existing] = await db
       .select({ id: channelConfigs.id })
@@ -222,6 +214,12 @@ export async function facebookOAuthRoutes(app: FastifyInstance) {
 
     await redis.del(`fb_pages:${session}`);
     log.info({ pageId, channelId: row.id }, "Facebook page connected");
+
+    // Subscribe webhook async — don't block the response
+    subscribePageWebhook(page.id, page.access_token).catch((err) =>
+      log.warn({ err, pageId }, "Webhook subscription failed — subscribe manually if needed"),
+    );
+
     return row;
   });
 }

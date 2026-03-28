@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useInboxStore }       from "@/stores/inbox.store";
 import { useConversations }    from "@/hooks/useConversations";
 import { ConversationItem }    from "./ConversationItem";
+import { api }                 from "@/lib/api";
 
 const STATUS_TABS = [
   { value: "open",     label: "Đang mở" },
@@ -17,9 +18,11 @@ const CHANNEL_FILTERS = [
 ];
 
 export function ConversationList() {
-  const [status,  setStatus]  = useState("open");
-  const [channel, setChannel] = useState("");
-  const { activeId, setActive, setConversations, clearUnread, conversations } = useInboxStore();
+  const [status,      setStatus]      = useState("open");
+  const [channel,     setChannel]     = useState("");
+  const [starredOnly, setStarredOnly] = useState(false);
+
+  const { activeId, setActive, setConversations, clearUnread, conversations, setStar, setUnreadByAgent } = useInboxStore();
 
   const { data } = useConversations({ status, channel: channel || undefined });
 
@@ -30,13 +33,41 @@ export function ConversationList() {
   const handleClick = (id: string) => {
     setActive(id);
     clearUnread(id);
+    // Clear server-side unread flag when opening
+    api.patch(`/v1/conversations/${id}`, { is_unread_by_agent: false }).catch(() => {});
   };
+
+  const handleStar = async (id: string, current: boolean) => {
+    const next = !current;
+    setStar(id, next);
+    await api.patch(`/v1/conversations/${id}`, { is_starred: next });
+  };
+
+  const displayed = starredOnly
+    ? conversations.filter((c) => c.isStarred)
+    : conversations;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", borderRight: "1px solid #E5E7EB" }}>
       {/* Header */}
       <div style={{ padding: "14px 14px 0", borderBottom: "1px solid #E5E7EB" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Hộp thư</h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Hộp thư</h2>
+          <button
+            onClick={() => setStarredOnly((v) => !v)}
+            title="Lọc tin nhắn đã đánh dấu sao"
+            style={{
+              border:       "none",
+              background:   "transparent",
+              cursor:       "pointer",
+              fontSize:     16,
+              color:        starredOnly ? "#F59E0B" : "#D1D5DB",
+              padding:      "2px 4px",
+            }}
+          >
+            ★
+          </button>
+        </div>
 
         {/* Status tabs */}
         <div style={{ display: "flex", gap: 2, marginBottom: 8 }}>
@@ -84,17 +115,18 @@ export function ConversationList() {
 
       {/* List */}
       <div style={{ overflowY: "auto", flex: 1 }}>
-        {conversations.length === 0 && (
+        {displayed.length === 0 && (
           <p style={{ padding: 24, textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
-            Không có hội thoại nào
+            {starredOnly ? "Chưa có tin nhắn đánh dấu sao" : "Không có hội thoại nào"}
           </p>
         )}
-        {conversations.map((conv) => (
+        {displayed.map((conv) => (
           <ConversationItem
             key={conv.id}
             {...conv}
             isActive={conv.id === activeId}
             onClick={() => handleClick(conv.id)}
+            onStar={(e) => handleStar(conv.id, conv.isStarred ?? false)}
           />
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { Avatar } from "@/components/shared/Avatar";
 
 interface Message {
   id:          string;
@@ -9,17 +10,36 @@ interface Message {
   createdAt:   string;
 }
 
-export function MessageBubble({ msg }: { msg: Message }) {
+interface Props {
+  msg:               Message;
+  contactAvatarUrl?: string;
+  contactName?:      string;
+  agentAvatarUrl?:   string;
+  agentName?:        string;
+}
+
+export function MessageBubble({ msg, contactAvatarUrl, contactName, agentAvatarUrl, agentName }: Props) {
   const isOut = msg.direction === "outbound";
 
   return (
     <div style={{
-      display:       "flex",
-      justifyContent: isOut ? "flex-end" : "flex-start",
-      marginBottom:  8,
+      display:        "flex",
+      flexDirection:  isOut ? "row-reverse" : "row",
+      alignItems:     "flex-end",
+      gap:            8,
+      marginBottom:   8,
     }}>
-      <div style={{ maxWidth: "72%" }}>
-        {/* Text content */}
+      {/* Avatar */}
+      <div style={{ flexShrink: 0 }}>
+        {isOut ? (
+          <Avatar name={agentName ?? "A"} url={agentAvatarUrl} size={28} />
+        ) : (
+          <Avatar name={contactName ?? "?"} url={contactAvatarUrl} size={28} />
+        )}
+      </div>
+
+      {/* Bubble content */}
+      <div style={{ maxWidth: "68%" }}>
         {msg.text && (
           <div style={{
             background:   isOut ? "#3B82F6" : "#F3F4F6",
@@ -35,7 +55,6 @@ export function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Attachments */}
         {msg.attachments?.map((att, i) => (
           <div key={i} style={{ marginTop: 4 }}>
             {att.type === "image" ? (

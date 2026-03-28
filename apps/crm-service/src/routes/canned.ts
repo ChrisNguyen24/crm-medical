@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, sql } from "drizzle-orm";
 import { db, cannedResponses } from "@crm/db";
 import { requireAuth, type JwtPayload } from "../middleware/auth";
 
@@ -7,7 +7,9 @@ export async function cannedRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { q?: string } }>(
     "/", { onRequest: [requireAuth] }, async (req) => {
       const rows = req.query.q
-        ? await db.select().from(cannedResponses).where(ilike(cannedResponses.shortcut, `%${req.query.q}%`))
+        ? await db.select().from(cannedResponses).where(
+            sql`${cannedResponses.shortcut} ILIKE ${`%${req.query.q}%`} OR ${cannedResponses.title} ILIKE ${`%${req.query.q}%`}`
+          )
         : await db.select().from(cannedResponses);
       return { data: rows };
     },

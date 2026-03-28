@@ -1,7 +1,34 @@
 import { eq, sql } from "drizzle-orm";
-import { db, contacts, type NewContact } from "@crm/db";
+import { db, contacts, channelConfigs, type NewContact } from "@crm/db";
 import type { MessageEvent, Platform } from "@crm/types";
 import { createLogger } from "@crm/logger";
+
+interface FbProfile {
+  name?: string;
+  avatarUrl?: string;
+  locale?: string;
+  gender?: string;
+}
+
+async function fetchFacebookProfile(senderId: string): Promise<FbProfile> {
+  try {
+    const [channel] = await db
+      .select({ token: channelConfigs.accessTokenEnc })
+      .from(channelConfigs)
+      .where(eq(channelConfigs.channel, "facebook"))
+      .limit(1);
+    if (!channel?.token) return {};
+
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${senderId}?fields=name,profile_pic,locale,gender&access_token=${channel.token}`,
+    );
+    if (!res.ok) return {};
+    const data = await res.json() as { name?: string; profile_pic?: string; locale?: string; gender?: string };
+    return { name: data.name, avatarUrl: data.profile_pic, locale: data.locale, gender: data.gender };
+  } catch {
+    return {};
+  }
+}
 
 const log = createLogger("conversation-service:contact");
 
@@ -40,10 +67,25 @@ export async function upsertContact(event: MessageEvent): Promise<string> {
     return contact.id;
   }
 
+  // Fetch real name from platform API if not provided by webhook
+  let resolvedName = senderName;
+  let resolvedAvatar = senderAvatar;
+  let resolvedLocale: string | undefined;
+  let resolvedGender: string | undefined;
+  if (!resolvedName && platform === "facebook") {
+    const fb = await fetchFacebookProfile(senderId);
+    resolvedName = fb.name;
+    resolvedAvatar = fb.avatarUrl ?? resolvedAvatar;
+    resolvedLocale = fb.locale;
+    resolvedGender = fb.gender;
+  }
+
   // Create new contact
   const newContact: NewContact = {
-    displayName: senderName ?? `${platform} user ${senderId.slice(-6)}`,
-    avatarUrl: senderAvatar,
+    displayName: resolvedName ?? `${platform} user ${senderId.slice(-6)}`,
+    avatarUrl: resolvedAvatar,
+    locale: resolvedLocale,
+    gender: resolvedGender,
     platformIds: { [platform]: senderId },
     tags: [],
   };

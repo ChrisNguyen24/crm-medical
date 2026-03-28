@@ -8,6 +8,8 @@ interface ConversationSummary {
   lastMessageAt?: string;
   lastMessageText?: string;
   assignedAgent?: string;
+  isStarred?: boolean;
+  isUnreadByAgent?: boolean;
   contact: {
     id: string;
     displayName: string;
@@ -26,6 +28,10 @@ interface InboxState {
   bumpToTop:          (conversationId: string, text?: string) => void;
   incrementUnread:    (conversationId: string) => void;
   clearUnread:        (conversationId: string) => void;
+  setStar:            (conversationId: string, isStarred: boolean) => void;
+  setUnreadByAgent:     (conversationId: string, isUnread: boolean) => void;
+  setStatus:            (conversationId: string, status: string) => void;
+  removeConversation:   (conversationId: string) => void;
 }
 
 export const useInboxStore = create<InboxState>((set) => ({
@@ -74,5 +80,31 @@ export const useInboxStore = create<InboxState>((set) => ({
       conversations: state.conversations.map((c) =>
         c.id === conversationId ? { ...c, unreadCount: 0 } : c,
       ),
+    })),
+
+  setStar: (conversationId, isStarred) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId ? { ...c, isStarred } : c,
+      ),
+    })),
+
+  setUnreadByAgent: (conversationId, isUnread) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId ? { ...c, isUnreadByAgent: isUnread } : c,
+      ),
+    })),
+
+  setStatus: (conversationId, status) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId ? { ...c, status } : c,
+      ),
+    })),
+
+  removeConversation: (conversationId) =>
+    set((state) => ({
+      conversations: state.conversations.filter((c) => c.id !== conversationId),
     })),
 }));

@@ -21,6 +21,13 @@ export default function FacebookSelectPage() {
   const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
+    // Facebook appends #_=_ to redirect URLs — strip it to avoid router issues
+    if (window.location.hash === "#_=_") {
+      window.history.replaceState(null, "", window.location.href.replace("#_=_", ""));
+    }
+  }, []);
+
+  useEffect(() => {
     if (!session) { router.replace("/settings/channels?error=invalid_state"); return; }
 
     api.get<{ data: FbPageOption[] }>(`/v1/facebook/oauth/pages?session=${session}`)

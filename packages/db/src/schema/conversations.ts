@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, pgEnum, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, pgEnum, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { contacts } from "./contacts";
 import { users } from "./users";
 
@@ -14,6 +14,8 @@ export const conversations = pgTable("conversations", {
   assignedAgent:    uuid("assigned_agent").references(() => users.id, { onDelete: "set null" }),
   lastMessageAt:    timestamp("last_message_at", { withTimezone: true }),
   lastMessageText:  text("last_message_text"),
+  isStarred:        boolean("is_starred").notNull().default(false),
+  isUnreadByAgent:  boolean("is_unread_by_agent").notNull().default(false),
   createdAt:        timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt:        timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, jsonb, timestamp, index, sql } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 export const contacts = pgTable("contacts", {
@@ -12,6 +12,8 @@ export const contacts = pgTable("contacts", {
    */
   platformIds:  jsonb("platform_ids").notNull().default({}),
   avatarUrl:    text("avatar_url"),
+  locale:       text("locale"),
+  gender:       text("gender"),
   tags:         text("tags").array().notNull().default([]),
   notes:        text("notes"),
   assignedAgent: uuid("assigned_agent").references(() => users.id, { onDelete: "set null" }),
@@ -19,7 +21,6 @@ export const contacts = pgTable("contacts", {
   createdAt:    timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt:    timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => ({
-  platformIdsIdx: index("contacts_platform_ids_gin_idx").on(t.platformIds),
   phoneIdx: index("contacts_phone_idx").on(t.phone),
 }));
 

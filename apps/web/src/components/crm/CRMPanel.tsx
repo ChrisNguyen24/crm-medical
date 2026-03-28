@@ -69,9 +69,11 @@ export function CRMPanel({ contactId }: Props) {
         {tab === "contact" && contact && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {([
-              ["Email", contact.email],
-              ["SĐT",   contact.phone],
-              ["Ghi chú", contact.notes],
+              ["Email",    contact.email],
+              ["SĐT",      contact.phone],
+              ["Giới tính", contact.gender === "male" ? "Nam" : contact.gender === "female" ? "Nữ" : contact.gender],
+              ["Ngôn ngữ", contact.locale ? contact.locale.replace("_", " / ") : undefined],
+              ["Ghi chú",  contact.notes],
             ] as [string, string | undefined][]).filter(([, v]) => v).map(([label, value]) => (
               <div key={label}>
                 <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 2 }}>{label}</div>
