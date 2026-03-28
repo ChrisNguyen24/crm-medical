@@ -13,18 +13,31 @@ interface FbProfile {
 async function fetchFacebookProfile(senderId: string): Promise<FbProfile> {
   try {
     const [channel] = await db
-      .select({ token: channelConfigs.accessTokenEnc })
+      .select({ token: channelConfigs.accessTokenEnc, externalAccountId: channelConfigs.externalAccountId })
       .from(channelConfigs)
       .where(eq(channelConfigs.channel, "facebook"))
       .limit(1);
     if (!channel?.token) return {};
 
+    // Try direct PSID lookup first
     const res = await fetch(
       `https://graph.facebook.com/v19.0/${senderId}?fields=name,profile_pic,locale,gender&access_token=${channel.token}`,
     );
-    if (!res.ok) return {};
-    const data = await res.json() as { name?: string; profile_pic?: string; locale?: string; gender?: string };
-    return { name: data.name, avatarUrl: data.profile_pic, locale: data.locale, gender: data.gender };
+    if (res.ok) {
+      const data = await res.json() as { name?: string; profile_pic?: string; locale?: string; gender?: string };
+      if (data.name) return { name: data.name, avatarUrl: data.profile_pic, locale: data.locale, gender: data.gender };
+    }
+
+    // Fallback: use the conversations API — works for privacy-restricted accounts
+    if (!channel.externalAccountId) return {};
+    const convRes = await fetch(
+      `https://graph.facebook.com/v19.0/${channel.externalAccountId}/conversations?user_id=${senderId}&fields=participants&access_token=${channel.token}`,
+    );
+    if (!convRes.ok) return {};
+    const convData = await convRes.json() as { data?: { participants?: { data?: { name: string; id: string }[] } }[] };
+    const participant = convData.data?.[0]?.participants?.data?.find((p) => p.id === senderId);
+    if (participant?.name) return { name: participant.name };
+    return {};
   } catch {
     return {};
   }
