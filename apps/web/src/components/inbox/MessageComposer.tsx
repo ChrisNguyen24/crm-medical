@@ -217,18 +217,36 @@ export function MessageComposer({ conversationId, onSent }: Props) {
           onClick={send}
           disabled={!canSend}
           style={{
-            padding:      "8px 16px",
-            background:   canSend ? "#3B82F6" : "#E5E7EB",
-            color:        canSend ? "#fff" : "#9CA3AF",
-            border:       "none",
-            borderRadius: 8,
-            cursor:       canSend ? "pointer" : "default",
-            fontSize:     13,
-            fontWeight:   600,
-            flexShrink:   0,
+            padding:        "8px 16px",
+            background:     sending ? "#93C5FD" : canSend ? "#3B82F6" : "#E5E7EB",
+            color:          canSend ? "#fff" : "#9CA3AF",
+            border:         "none",
+            borderRadius:   8,
+            cursor:         canSend ? "pointer" : "default",
+            fontSize:       13,
+            fontWeight:     600,
+            flexShrink:     0,
+            display:        "flex",
+            alignItems:     "center",
+            gap:            6,
+            minWidth:       64,
+            justifyContent: "center",
           }}
         >
-          {sending ? "..." : "Gửi"}
+          {sending ? (
+            <>
+              <span style={{
+                width:       14,
+                height:      14,
+                border:      "2px solid rgba(255,255,255,0.4)",
+                borderTop:   "2px solid #fff",
+                borderRadius:"50%",
+                display:     "inline-block",
+                animation:   "spin 0.7s linear infinite",
+              }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            </>
+          ) : "Gửi"}
         </button>
       </div>
     </div>
