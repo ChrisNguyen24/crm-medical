@@ -92,13 +92,36 @@ export async function conversationRoutes(app: FastifyInstance) {
     return { data: rows.reverse(), hasMore: rows.length === Number(limit) }; // chronological order
   });
 
-  // POST /conversations/:id/messages  (send outbound)
-  app.post<{
-    Params: { id: string };
-    Body: { text: string };
-  }>("/:id/messages", { onRequest: [requireAuth] }, async (req, reply) => {
+  // POST /conversations/:id/messages  (send outbound — supports multipart for attachments)
+  app.post<{ Params: { id: string } }>(
+    "/:id/messages", { onRequest: [requireAuth] }, async (req, reply) => {
     const user = req.user as JwtPayload;
-    const { text } = req.body;
+
+    // Parse multipart OR JSON body
+    let text: string | undefined;
+    let attachmentPayload: import("../services/send.service").AttachmentPayload | undefined;
+
+    const contentType = req.headers["content-type"] ?? "";
+    if (contentType.includes("multipart/form-data")) {
+      const parts = req.parts();
+      for await (const part of parts) {
+        if (part.type === "field" && part.fieldname === "text") {
+          text = part.value as string;
+        } else if (part.type === "file") {
+          const chunks: Buffer[] = [];
+          for await (const chunk of part.file) chunks.push(chunk);
+          attachmentPayload = {
+            buffer:   Buffer.concat(chunks),
+            mimetype: part.mimetype,
+            filename: part.filename,
+          };
+        }
+      }
+    } else {
+      text = (req.body as any)?.text;
+    }
+
+    if (!text && !attachmentPayload) return reply.code(400).send({ error: "text or file required" });
 
     const [conv] = await db
       .select()
@@ -108,14 +131,12 @@ export async function conversationRoutes(app: FastifyInstance) {
 
     if (!conv) return reply.code(404).send({ error: "Not found" });
 
-    // Look up the channel access token from channel_configs
     const [config] = await db
       .select({ accessTokenEnc: channelConfigs.accessTokenEnc, externalAccountId: channelConfigs.externalAccountId })
       .from(channelConfigs)
       .where(and(eq(channelConfigs.channel, conv.channel), eq(channelConfigs.isActive, "true")))
       .limit(1);
 
-    // Get contact's platform sender ID for the recipient field
     const [contact] = await db
       .select({ platformIds: contacts.platformIds })
       .from(contacts)
@@ -125,19 +146,31 @@ export async function conversationRoutes(app: FastifyInstance) {
     const platformIds = (contact?.platformIds ?? {}) as Record<string, string>;
     const recipientId = platformIds[conv.channel];
 
-    // Send to platform (non-blocking — save message regardless of send result)
     let externalMsgId = `local_${Date.now()}`;
+    const savedAttachments: { type: string; url: string; name?: string }[] = [];
+
     if (config?.accessTokenEnc && recipientId && (conv.channel === "facebook" || conv.channel === "zalo")) {
-      // NOTE: accessTokenEnc should be decrypted with MASTER_KEY in production
-      // For now treating as plaintext during development
       const result = await sendToPlatform({
         platform:    conv.channel,
         recipientId,
         text,
         accessToken: config.accessTokenEnc,
+        attachment:  attachmentPayload,
       });
       if (result.messageId) externalMsgId = result.messageId;
       if (!result.ok) log.warn({ error: result.error, platform: conv.channel }, "Platform send failed, message saved locally");
+    }
+
+    // Determine content type and attachment record
+    let contentType2: "text" | "image" | "video" | "audio" | "file" = "text";
+    if (attachmentPayload) {
+      const mime = attachmentPayload.mimetype;
+      contentType2 = mime.startsWith("image/") ? "image"
+        : mime.startsWith("video/") ? "video"
+        : mime.startsWith("audio/") ? "audio"
+        : "file";
+      // Store filename as the attachment reference (actual URL comes from platform CDN)
+      savedAttachments.push({ type: contentType2, url: attachmentPayload.filename, name: attachmentPayload.filename });
     }
 
     const [saved] = await db.insert(messages).values({
@@ -147,20 +180,20 @@ export async function conversationRoutes(app: FastifyInstance) {
       externalMsgId,
       senderType:     "agent",
       senderId:       user.sub,
-      contentType:    "text",
-      text,
-      attachments:    [],
+      contentType:    contentType2,
+      text:           text ?? null,
+      attachments:    savedAttachments,
       createdAt:      new Date(),
     }).returning();
 
-    // Update last message
+    const preview = text ?? attachmentPayload?.filename ?? "";
     await db.update(conversations).set({
       lastMessageAt:   new Date(),
-      lastMessageText: text.slice(0, 200),
+      lastMessageText: preview.slice(0, 200),
       updatedAt:       new Date(),
     }).where(eq(conversations.id, conv.id));
 
-    log.info({ conversationId: conv.id, agentId: user.sub }, "Outbound message sent");
+    log.info({ conversationId: conv.id, agentId: user.sub, hasAttachment: !!attachmentPayload }, "Outbound message sent");
     return saved;
   });
 

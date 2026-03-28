@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import fjwt from "@fastify/jwt";
 import { env } from "@crm/config";
@@ -25,6 +26,7 @@ async function bootstrap() {
     origin:      process.env.WEB_URL ?? "http://localhost:3004",
     credentials: true,
   });
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } }); // 25 MB
   await app.register(rateLimit, { max: 200, timeWindow: "1 minute" });
   await app.register(fjwt, { secret: env.JWT_SECRET });
 

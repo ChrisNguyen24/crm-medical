@@ -31,14 +31,14 @@ async function refreshAccessToken(): Promise<string | null> {
   return data.accessToken;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, skipContentType?: boolean): Promise<T> {
   let token = getToken();
 
   const makeRequest = async (t: string | null) =>
     fetch(`${BASE_URL}${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(skipContentType ? {} : { "Content-Type": "application/json" }),
         ...(t ? { Authorization: `Bearer ${t}` } : {}),
         ...init?.headers,
       },
@@ -61,8 +61,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get:    <T>(path: string)                       => request<T>(path),
-  post:   <T>(path: string, body: unknown)        => request<T>(path, { method: "POST",   body: JSON.stringify(body) }),
-  patch:  <T>(path: string, body: unknown)        => request<T>(path, { method: "PATCH",  body: JSON.stringify(body) }),
-  delete: <T>(path: string)                       => request<T>(path, { method: "DELETE" }),
+  get:      <T>(path: string)                       => request<T>(path),
+  post:     <T>(path: string, body: unknown)        => request<T>(path, { method: "POST",   body: JSON.stringify(body) }),
+  patch:    <T>(path: string, body: unknown)        => request<T>(path, { method: "PATCH",  body: JSON.stringify(body) }),
+  delete:   <T>(path: string)                       => request<T>(path, { method: "DELETE" }),
+  postForm: <T>(path: string, form: FormData)       => request<T>(path, { method: "POST",   body: form }, true),
 };

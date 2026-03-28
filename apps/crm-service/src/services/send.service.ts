@@ -1,29 +1,35 @@
 import { createLogger } from "@crm/logger";
-import { getRedis } from "@crm/redis";
 
 const log = createLogger("crm-service:send");
 
-interface SendOptions {
-  platform:    "facebook" | "zalo";
-  recipientId: string;   // PSID (Facebook) hoặc user_id (Zalo)
-  text:        string;
-  accessToken: string;
+export interface AttachmentPayload {
+  buffer:   Buffer;
+  mimetype: string;
+  filename: string;
 }
 
-interface SendResult {
-  ok:        boolean;
+interface SendOptions {
+  platform:    "facebook" | "zalo";
+  recipientId: string;
+  text?:       string;
+  accessToken: string;
+  attachment?: AttachmentPayload;
+}
+
+export interface SendResult {
+  ok:         boolean;
   messageId?: string;
-  error?:    string;
+  attachmentUrl?: string;
+  error?:     string;
 }
 
 /**
  * Send outbound message to a platform.
- * Called after saving the outbound message row to DB.
  */
 export async function sendToPlatform(opts: SendOptions): Promise<SendResult> {
   switch (opts.platform) {
-    case "facebook":  return sendFacebook(opts);
-    case "zalo":      return sendZalo(opts);
+    case "facebook": return sendFacebook(opts);
+    case "zalo":     return sendZalo(opts);
     default:
       return { ok: false, error: `Unsupported platform: ${opts.platform}` };
   }
@@ -31,21 +37,48 @@ export async function sendToPlatform(opts: SendOptions): Promise<SendResult> {
 
 // ─── Facebook Messenger ───────────────────────────────────────────────────────
 
-async function sendFacebook({ recipientId, text, accessToken }: SendOptions): Promise<SendResult> {
+async function sendFacebook({ recipientId, text, accessToken, attachment }: SendOptions): Promise<SendResult> {
   const url = `https://graph.facebook.com/v19.0/me/messages?access_token=${accessToken}`;
 
+  if (attachment) {
+    // Determine Facebook attachment type from mimetype
+    const fbType = attachment.mimetype.startsWith("image/") ? "image"
+      : attachment.mimetype.startsWith("video/") ? "video"
+      : attachment.mimetype.startsWith("audio/") ? "audio"
+      : "file";
+
+    const form = new FormData();
+    form.append("recipient",      JSON.stringify({ id: recipientId }));
+    form.append("messaging_type", "RESPONSE");
+    form.append("message",        JSON.stringify({
+      attachment: { type: fbType, payload: { is_reusable: true } },
+    }));
+    form.append("filedata", new Blob([attachment.buffer], { type: attachment.mimetype }), attachment.filename);
+
+    const res = await fetch(url, { method: "POST", body: form });
+    const data = await res.json() as any;
+
+    if (!res.ok) {
+      log.error({ error: data.error, recipientId }, "Facebook attachment send failed");
+      return { ok: false, error: data.error?.message ?? "Facebook API error" };
+    }
+
+    log.info({ messageId: data.message_id, recipientId, fbType }, "Facebook attachment sent");
+    return { ok: true, messageId: data.message_id };
+  }
+
+  // Text message
   const res = await fetch(url, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      recipient: { id: recipientId },
-      message:   { text },
+      recipient:      { id: recipientId },
+      message:        { text },
       messaging_type: "RESPONSE",
     }),
   });
 
   const data = await res.json() as any;
-
   if (!res.ok) {
     log.error({ error: data.error, recipientId }, "Facebook send failed");
     return { ok: false, error: data.error?.message ?? "Facebook API error" };
@@ -71,8 +104,6 @@ async function sendZalo({ recipientId, text, accessToken }: SendOptions): Promis
   });
 
   const data = await res.json() as any;
-
-  // Zalo returns error: 0 on success
   if (data.error !== 0) {
     log.error({ error: data.message, code: data.error, recipientId }, "Zalo send failed");
     return { ok: false, error: data.message ?? "Zalo API error" };

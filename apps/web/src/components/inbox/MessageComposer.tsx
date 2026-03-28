@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, type KeyboardEvent } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 
@@ -15,9 +15,11 @@ export function MessageComposer({ conversationId, onSent }: Props) {
   const [sending,     setSending]    = useState(false);
   const [showCanned,  setShowCanned] = useState(false);
   const [cannedQuery, setCannedQuery]= useState("");
+  const [file,        setFile]       = useState<File | null>(null);
+  const [preview,     setPreview]    = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch canned responses when "/" is typed
   const { data: cannedData } = useSWR(
     showCanned ? `/v1/canned-responses?q=${cannedQuery}` : null,
     (url: string) => api.get<{ data: CannedResponse[] }>(url),
@@ -47,12 +49,38 @@ export function MessageComposer({ conversationId, onSent }: Props) {
     textareaRef.current?.focus();
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    if (f && f.type.startsWith("image/")) {
+      setPreview(URL.createObjectURL(f));
+    } else {
+      setPreview(null);
+    }
+    e.target.value = "";
+  };
+
+  const clearFile = () => {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+  };
+
   const send = async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed && !file) return;
+    if (sending) return;
     setSending(true);
     try {
-      await api.post(`/v1/conversations/${conversationId}/messages`, { text: trimmed });
+      if (file) {
+        const form = new FormData();
+        if (trimmed) form.append("text", trimmed);
+        form.append("file", file);
+        await api.postForm(`/v1/conversations/${conversationId}/messages`, form);
+        clearFile();
+      } else {
+        await api.post(`/v1/conversations/${conversationId}/messages`, { text: trimmed });
+      }
       setText("");
       onSent();
     } finally {
@@ -60,22 +88,24 @@ export function MessageComposer({ conversationId, onSent }: Props) {
     }
   };
 
+  const canSend = (text.trim().length > 0 || !!file) && !sending;
+
   return (
     <div style={{ borderTop: "1px solid #E5E7EB", padding: "10px 14px", position: "relative" }}>
       {/* Canned responses picker */}
       {showCanned && canned.length > 0 && (
         <div style={{
-          position:   "absolute",
-          bottom:     "100%",
-          left:       14,
-          right:      14,
-          background: "#fff",
-          border:     "1px solid #E5E7EB",
+          position:     "absolute",
+          bottom:       "100%",
+          left:         14,
+          right:        14,
+          background:   "#fff",
+          border:       "1px solid #E5E7EB",
           borderRadius: 8,
-          boxShadow:  "0 4px 12px rgba(0,0,0,0.1)",
-          maxHeight:  200,
-          overflowY:  "auto",
-          zIndex:     10,
+          boxShadow:    "0 4px 12px rgba(0,0,0,0.1)",
+          maxHeight:    200,
+          overflowY:    "auto",
+          zIndex:       10,
         }}>
           {canned.map((c) => (
             <button
@@ -99,35 +129,100 @@ export function MessageComposer({ conversationId, onSent }: Props) {
         </div>
       )}
 
+      {/* File preview */}
+      {file && (
+        <div style={{
+          marginBottom:  8,
+          padding:       "8px 10px",
+          background:    "#F9FAFB",
+          border:        "1px solid #E5E7EB",
+          borderRadius:  8,
+          display:       "flex",
+          alignItems:    "center",
+          gap:           10,
+        }}>
+          {preview ? (
+            <img src={preview} alt="" style={{ height: 56, borderRadius: 6, objectFit: "cover" }} />
+          ) : (
+            <span style={{ fontSize: 24 }}>📎</span>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {file.name}
+            </div>
+            <div style={{ fontSize: 11, color: "#6B7280" }}>
+              {(file.size / 1024).toFixed(0)} KB
+            </div>
+          </div>
+          <button
+            onClick={clearFile}
+            style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, color: "#9CA3AF", padding: 4 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Input row */}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        {/* Attach file button */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          title="Đính kèm file / ảnh"
+          style={{
+            width:        36,
+            height:       36,
+            border:       "1px solid #E5E7EB",
+            borderRadius: 8,
+            background:   "#fff",
+            cursor:       "pointer",
+            fontSize:     18,
+            display:      "flex",
+            alignItems:   "center",
+            justifyContent: "center",
+            flexShrink:   0,
+            color:        "#6B7280",
+          }}
+        >
+          📎
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
+
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder='Nhập tin nhắn... (gõ "/" để dùng câu trả lời mẫu)'
+          placeholder={file ? "Thêm chú thích... (tùy chọn)" : 'Nhập tin nhắn... (gõ "/" để dùng câu trả lời mẫu)'}
           rows={2}
           style={{
-            flex:       1,
-            resize:     "none",
-            border:     "1px solid #E5E7EB",
+            flex:         1,
+            resize:       "none",
+            border:       "1px solid #E5E7EB",
             borderRadius: 8,
-            padding:    "8px 10px",
-            fontSize:   13,
-            outline:    "none",
-            lineHeight: 1.5,
+            padding:      "8px 10px",
+            fontSize:     13,
+            outline:      "none",
+            lineHeight:   1.5,
           }}
         />
+
         <button
           onClick={send}
-          disabled={!text.trim() || sending}
+          disabled={!canSend}
           style={{
             padding:      "8px 16px",
-            background:   text.trim() ? "#3B82F6" : "#E5E7EB",
-            color:        text.trim() ? "#fff" : "#9CA3AF",
+            background:   canSend ? "#3B82F6" : "#E5E7EB",
+            color:        canSend ? "#fff" : "#9CA3AF",
             border:       "none",
             borderRadius: 8,
-            cursor:       text.trim() ? "pointer" : "default",
+            cursor:       canSend ? "pointer" : "default",
             fontSize:     13,
             fontWeight:   600,
             flexShrink:   0,
