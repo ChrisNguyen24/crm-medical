@@ -1,9 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, desc, lt, sql } from "drizzle-orm";
+import { writeFile } from "node:fs/promises";
+import { join, extname } from "node:path";
+import { randomUUID } from "node:crypto";
 import { db, conversations, messages, contacts, users, channelConfigs } from "@crm/db";
 import { requireAuth, type JwtPayload } from "../middleware/auth";
 import { createLogger } from "@crm/logger";
 import { sendToPlatform } from "../services/send.service";
+
+// Absolute path to Next.js public/uploads — served at /uploads/*
+const UPLOADS_DIR = process.env.UPLOADS_DIR ?? join(process.cwd(), "../../apps/web/public/uploads");
+const WEB_URL = process.env.WEB_URL ?? "http://localhost:3004";
 
 const log = createLogger("crm-service:conversations");
 
@@ -149,6 +156,22 @@ export async function conversationRoutes(app: FastifyInstance) {
     let externalMsgId = `local_${Date.now()}`;
     const savedAttachments: { type: string; url: string; name?: string }[] = [];
 
+    // Save file to disk and build a public URL
+    let publicFileUrl: string | undefined;
+    let contentType2: "text" | "image" | "video" | "audio" | "file" = "text";
+    if (attachmentPayload) {
+      const mime = attachmentPayload.mimetype;
+      contentType2 = mime.startsWith("image/") ? "image"
+        : mime.startsWith("video/") ? "video"
+        : mime.startsWith("audio/") ? "audio"
+        : "file";
+      const ext = extname(attachmentPayload.filename) || `.${mime.split("/")[1] ?? "bin"}`;
+      const safeName = `${randomUUID()}${ext}`;
+      await writeFile(join(UPLOADS_DIR, safeName), attachmentPayload.buffer);
+      publicFileUrl = `${WEB_URL}/uploads/${safeName}`;
+      savedAttachments.push({ type: contentType2, url: publicFileUrl, name: attachmentPayload.filename });
+    }
+
     if (config?.accessTokenEnc && recipientId && (conv.channel === "facebook" || conv.channel === "zalo")) {
       const result = await sendToPlatform({
         platform:    conv.channel,
@@ -159,18 +182,6 @@ export async function conversationRoutes(app: FastifyInstance) {
       });
       if (result.messageId) externalMsgId = result.messageId;
       if (!result.ok) log.warn({ error: result.error, platform: conv.channel }, "Platform send failed, message saved locally");
-    }
-
-    // Determine content type and attachment record
-    let contentType2: "text" | "image" | "video" | "audio" | "file" = "text";
-    if (attachmentPayload) {
-      const mime = attachmentPayload.mimetype;
-      contentType2 = mime.startsWith("image/") ? "image"
-        : mime.startsWith("video/") ? "video"
-        : mime.startsWith("audio/") ? "audio"
-        : "file";
-      // Store filename as the attachment reference (actual URL comes from platform CDN)
-      savedAttachments.push({ type: contentType2, url: attachmentPayload.filename, name: attachmentPayload.filename });
     }
 
     const [saved] = await db.insert(messages).values({
