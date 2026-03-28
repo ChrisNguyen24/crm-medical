@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@crm/types":  ["../../packages/types/src/index.ts"],
+      "@crm/config": ["../../packages/config/src/index.ts"],
+      "@crm/logger": ["../../packages/logger/src/index.ts"],
+      "@crm/redis":  ["../../packages/redis/src/index.ts"],
+      "@crm/db":     ["../../packages/db/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

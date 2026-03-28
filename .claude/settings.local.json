@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(pnpm --version)",
+      "Bash(npm install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(printf 'a\\\\n\\\\n')",
+      "Bash(pnpm --filter @crm/gateway exec tsc --noEmit)",
+      "Bash(pnpm --filter @crm/conversation-service exec tsc --noEmit)",
+      "Bash(pnpm --filter @crm/notification-service exec tsc --noEmit)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(pnpm --filter @crm/web exec tsc --noEmit)",
+      "Bash(pnpm --filter @crm/crm-service exec tsc --noEmit)"
+    ]
+  }
+}
